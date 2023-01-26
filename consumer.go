@@ -4,15 +4,18 @@ import (
 	"github.com/nats-io/nats.go"
 	_ "github.com/nats-io/nats.go"
 	"k8s.io/klog/v2"
+	"os"
 )
 
 const (
 	//natsAddress = "localhost:30222"
-	natsServerAddress = "nats://127.0.0.1:30222"
+	//natsServerAddress = "nats://127.0.0.1:30222"
+	natsServerAddress = "this-is-nats.appscode.ninja:4222"
+	natsSubject       = "stackscript-log"
 )
 
 func main() {
-	nc, err := nats.Connect(natsServerAddress, nats.UserCredentials("/home/rasel/Downloads/nats.creds"))
+	nc, err := nats.Connect(natsServerAddress, nats.UserInfo(os.Getenv("USER"), os.Getenv("PASS")))
 	if err != nil {
 		klog.Errorf("failed to connect with NATS server: %s", err.Error())
 		return
@@ -42,7 +45,7 @@ func addStream(js nats.JetStreamContext) (*nats.StreamInfo, error) {
 
 	strInfo, err := js.AddStream(&nats.StreamConfig{
 		Name:     "LOG",
-		Subjects: []string{"natjobs.resp.>"},
+		Subjects: []string{natsSubject},
 	})
 	if err != nil {
 		return nil, err
@@ -58,7 +61,7 @@ func addConsumer(js nats.JetStreamContext, streamInfo *nats.StreamInfo) error {
 	connInfo, err := js.AddConsumer(streamInfo.Config.Name, &nats.ConsumerConfig{
 		Durable:       "MONITOR",
 		AckPolicy:     nats.AckExplicitPolicy,
-		FilterSubject: "natjobs.resp.>",
+		FilterSubject: natsSubject,
 	})
 	if err != nil {
 		return err
@@ -93,6 +96,6 @@ func addConsumer(js nats.JetStreamContext, streamInfo *nats.StreamInfo) error {
 			return err
 		}
 
-		klog.Infof("message received - ", string(msgs[0].Data))
+		klog.Info("R:", string(msgs[0].Data))
 	}
 }
