@@ -1,7 +1,7 @@
 # nats
 Run the consumer for this_is_nats server:
 ```bash
-export USER=<nats username>
-export PASS=<nats password>
+export USER=????????
+export PASS=????????
 go run consumer.go
 ```
