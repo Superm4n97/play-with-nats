@@ -4,18 +4,42 @@ import (
 	"github.com/nats-io/nats.go"
 	_ "github.com/nats-io/nats.go"
 	"k8s.io/klog/v2"
+	"log"
+	"os"
 )
 
 const (
 	//natsAddress = "localhost:30222"
-	natsServerAddress = "nats://127.0.0.1:30222"
+	//natsServerAddress = "nats://127.0.0.1:30222"
+	// natsServerAddress = "this-is-nats.appscode.ninja:4222"
+	//natsServerAddress = "nats://nats.appscode.ninja:4222"
+
+	natsSubject = "stackscript-log"
 )
 
 func main() {
-	nc, err := nats.Connect(natsServerAddress, nats.UserCredentials("/home/rasel/Downloads/nats.creds"))
-	if err != nil {
-		klog.Errorf("failed to connect with NATS server: %s", err.Error())
+	natsServerAddress, ok := os.LookupEnv("SERVER")
+	if !ok {
+		log.Fatal("missing nats server address")
 		return
+	}
+
+	var nc *nats.Conn
+	var err error
+
+	_, ok = os.LookupEnv("CRED")
+	if ok {
+		//nc, err := nats.Connect(natsServerAddress, nats.UserCredentials("/home/rasel/Desktop/nats/admin.creds"))
+		nc, err = nats.Connect(natsServerAddress, nats.UserCredentials(os.Getenv("CRED")))
+		if err != nil {
+			klog.Infof("failed to connect with nats server, %s", err.Error())
+			return
+		}
+	} else {
+		nc, err = nats.Connect(natsServerAddress, nats.UserInfo(os.Getenv("USER"), os.Getenv("PASS")))
+		if err != nil {
+			klog.Infof("failed to connect with nats server, %s", err.Error())
+		}
 	}
 
 	// returns a jetstream context which will be used for message passing
@@ -42,7 +66,7 @@ func addStream(js nats.JetStreamContext) (*nats.StreamInfo, error) {
 
 	strInfo, err := js.AddStream(&nats.StreamConfig{
 		Name:     "LOG",
-		Subjects: []string{"natjobs.resp.>"},
+		Subjects: []string{natsSubject},
 	})
 	if err != nil {
 		return nil, err
@@ -58,7 +82,7 @@ func addConsumer(js nats.JetStreamContext, streamInfo *nats.StreamInfo) error {
 	connInfo, err := js.AddConsumer(streamInfo.Config.Name, &nats.ConsumerConfig{
 		Durable:       "MONITOR",
 		AckPolicy:     nats.AckExplicitPolicy,
-		FilterSubject: "natjobs.resp.>",
+		FilterSubject: natsSubject,
 	})
 	if err != nil {
 		return err
@@ -93,6 +117,6 @@ func addConsumer(js nats.JetStreamContext, streamInfo *nats.StreamInfo) error {
 			return err
 		}
 
-		klog.Infof("message received - ", string(msgs[0].Data))
+		klog.Info("R:", string(msgs[0].Data))
 	}
 }
